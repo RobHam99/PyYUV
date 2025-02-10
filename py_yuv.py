@@ -3,7 +3,7 @@ import os
 
 class YUVFile:
     """
-    Class for YUV file i/o and interplay with PyTorch.
+    Class for YUV file I/O and interplay with PyTorch.
     """
 
     def __init__(self, file_path: str, width: int, height: int, pixel_format: str = "yuv420p", bit_depth: int = 10, resolution: str = 'UHD'):
@@ -16,6 +16,7 @@ class YUVFile:
             height (int): Frame height.
             pixel_format (str): Chroma subsampling format (default is "yuv420p"). Supported: "yuv420p", "yuv422p", "yuv444p".
             bit_depth (int): Bit depth of the YUV file (default is 10).
+            resolution (str): Resolution of the video ('UHD', 'HD', 'SD').
         """
         self.file_path = file_path
         self.width = width
@@ -40,7 +41,7 @@ class YUVFile:
         Calculates the YUV dimensions based on the pixel format.
 
         Returns:
-            tuple: Tuple (Y size, UV width, UV height).
+            tuple: Tuple (Y size, UV width, UV height, UV size).
         """
         y_size = self.width * self.height
         if self.pixel_format == "yuv420p":
@@ -85,13 +86,14 @@ class YUVFile:
  
     def _binary_to_numpy(self, yuv_frames, num_frames):
         """
-        Converts a binary frame to NumPy arrays.
+        Converts binary frames to NumPy arrays.
 
         Args:
-            frame (bytes): Binary frame data.
+            yuv_frames (bytes): Binary frame data.
+            num_frames (int): Number of frames to convert.
 
         Returns:
-            tuple: Tuple (Y, U, V) as NumPy arrays.
+            numpy.ndarray: NumPy array of frames.
         """
         np_frames = np.empty((num_frames, self.height, self.width, 3), dtype=np.float32)
         frame_size_16_bit = self.frame_size // self.bit_depth_multiplier
@@ -121,13 +123,17 @@ class YUVFile:
 
     def load_yuv_frames(self, start_frame_id=0, num_frames=1):
         """
-        Reads a single frame from the YUV file.
+        Reads frames from the YUV file.
 
         Args:
-            start_frame_id (int): Index of the frame to read (0-based).
+            start_frame_id (int): Index of the first frame to read (0-based).
+            num_frames (int): Number of frames to read.
 
         Returns:
-            tuple: Tuple (Y, U, V) as NumPy arrays.
+            numpy.ndarray: NumPy array of frames.
+
+        Raises:
+            ValueError: If the start frame index is out of bounds.
         """
         seq_len = self._calculate_seq_len()
         if start_frame_id >= seq_len:
@@ -144,11 +150,11 @@ class YUVFile:
         """
         Normalises the pixel values of the given frames based on the bit depth.
 
-        Parameters:
-        frames (numpy.ndarray): The input frames to be normalised.
+        Args:
+            frames (numpy.ndarray): The input frames to be normalised.
 
         Returns:
-        numpy.ndarray: The normalised frames with pixel values scaled to the range [0, 1].
+            numpy.ndarray: The normalised frames with pixel values scaled to the range [0, 1].
         """
         normalisation_factor = (2 ** self.bit_depth) - 1
         return frames / normalisation_factor
@@ -157,11 +163,11 @@ class YUVFile:
         """
         Unnormalises the pixel values of the given frames based on the bit depth.
 
-        Parameters:
-        frames (numpy.ndarray): The input frames to be unnormalised.
+        Args:
+            frames (numpy.ndarray): The input frames to be unnormalised.
 
         Returns:
-        numpy.ndarray: The unnormalised frames with pixel values scaled to the range [0, 2**bit_depth - 1].
+            numpy.ndarray: The unnormalised frames with pixel values scaled to the range [0, 2**bit_depth - 1].
         """
         normalisation_factor = (2 ** self.bit_depth) - 1
         return frames * normalisation_factor
@@ -171,12 +177,14 @@ class YUVFile:
         Converts YUV components to an RGB image.
 
         Args:
-            y (numpy.ndarray): Luminance (Y) component.
-            u (numpy.ndarray): Chrominance (U) component.
-            v (numpy.ndarray): Chrominance (V) component.
+            frames (numpy.ndarray): YUV frames to be converted.
+            normalise (bool): Whether to normalise the frames or not (default is False).
 
         Returns:
             numpy.ndarray: RGB image as a NumPy array.
+
+        Raises:
+            ValueError: If the frame shape is incorrect.
         """
         if frames[0].ndim != 3 or frames[0].shape != (self.height, self.width, 3):
             raise ValueError(f"Frame shape must be ({self.height}, {self.width}, 3). Found: {frames[0].shape}")
@@ -222,6 +230,9 @@ class YUVFile:
 
         Returns:
             numpy.ndarray: YUV image as a NumPy array.
+
+        Raises:
+            ValueError: If the frame shape is incorrect.
         """
         if frames[0].ndim != 3 or frames[0].shape != (self.height, self.width, 3):
             raise ValueError(f"Frame shape must be ({self.height}, {self.width}, 3). Found: {frames[0].shape}")
@@ -262,6 +273,9 @@ class YUVFile:
         Args:
             frames (numpy.ndarray): Frames to be saved.
             output_path (str): Path to save the YUV file.
+
+        Raises:
+            ValueError: If the frame array shape is incorrect.
         """
         if frames.ndim != 4 or frames.shape[1:] != (self.height, self.width, 3):
                 raise ValueError(f"Frame array shape must be (num_frames, {self.height}, {self.width}, 3). Found: {frames.shape}")
